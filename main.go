@@ -14,22 +14,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type EchoInput struct {
-	Message string `json:"message" jsonschema:"the message to echo back"`
-}
-
-type EchoOutput struct {
-	Back string `json:"back" jsonschema:"the message to echo back"`
-}
-
-func EchoHandler(ctx context.Context, req *mcp.CallToolRequest, input EchoInput) (
-	*mcp.CallToolResult,
-	EchoOutput,
-	error,
-) {
-	return nil, EchoOutput{Back: input.Message}, nil
-}
-
 type SearchPropertiesInput struct {
 	City         string `json:"city" jsonschema:"the city to search in, e.g. Austin"`
 	State        string `json:"state" jsonschema:"the 2-letter state abbreviation, e.g. TX"`
@@ -53,7 +37,7 @@ func SearchPropertiesHandler(ctx context.Context, req *mcp.CallToolRequest, inpu
 	SearchPropertiesOutput,
 	error,
 ) {
-	body, err := fetchListings(input.City, input.State)
+	body, err := fetchListings(input.City, input.State, input.MinYearBuilt, input.MinPrice)
 	if err != nil {
 		return nil, SearchPropertiesOutput{}, err
 	}
@@ -86,13 +70,15 @@ func SearchPropertiesHandler(ctx context.Context, req *mcp.CallToolRequest, inpu
 	return nil, SearchPropertiesOutput{Properties: properties}, nil
 }
 
-func fetchListings(city, state string) ([]byte, error) {
+func fetchListings(city string, state string, minYearBuilt int, minPrice int) ([]byte, error) {
 	baseURL := "https://api.rentcast.io/v1/listings/sale"
 
 	params := url.Values{}
 	params.Add("city", city)
 	params.Add("state", state)
 	params.Add("propertyType", "Single Family")
+	params.Add("yearBuilt", fmt.Sprintf("%d:", minYearBuilt))
+	params.Add("price", fmt.Sprintf("%d:", minPrice))
 
 	fullURL := baseURL + "?" + params.Encode()
 
@@ -129,7 +115,6 @@ func main() {
 	godotenv.Load("/Users/david/Desktop/mcp-server/.env")
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "mcp-server", Version: "v1.0.0"}, nil)
-	mcp.AddTool(server, &mcp.Tool{Name: "echo", Description: "echo message back to user"}, EchoHandler)
 	mcp.AddTool(server, &mcp.Tool{Name: "search-properties", Description: "fetch properties and their information"}, SearchPropertiesHandler)
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
